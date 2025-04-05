@@ -3,7 +3,7 @@
 set -e # Exit immediately if a command exits with a non-zero status.
 
 # --- Configuration ---
-REPO_URL="https://github.com/yourusername/passgen.git" # !!! Replace with the actual repository URL !!!
+REPO_URL="https://github.com/kxrxh/passgen.git" # !!! Replace with the actual repository URL !!!
 INSTALL_DIR="/usr/local/bin"
 PROJECT_NAME="passgen"
 CLONE_DIR=$(basename "$REPO_URL" .git)
