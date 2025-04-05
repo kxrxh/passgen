@@ -40,15 +40,11 @@ The script will:
 ### Manual Installation
 
 ```bash
-# Clone the repository (replace with the actual URL)
 git clone https://github.com/kxrxh/passgen.git
 cd passgen
 
-# Build with Cargo
 cargo build --release
 
-# Optional: Copy to a directory in your PATH (e.g., /usr/local/bin)
-# This might require sudo
 sudo cp target/release/passgen /usr/local/bin/
 ```
 
