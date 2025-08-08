@@ -21,34 +21,28 @@ An installation script is provided for convenience on Linux and macOS systems.
 
 **Steps:**
 
-1.  **Important:** Open the `passgen/install.sh` script and replace the placeholder `REPO_URL="https://github.com/kxrxh/passgen.git"` with the actual URL of this repository.
-2.  Make the script executable:
+1.  Make the script executable:
     ```bash
     chmod +x passgen/install.sh
     ```
-3.  Run the script from the directory *containing* the `passgen` folder:
+2.  Run the script from the directory *containing* the `passgen` folder:
     ```bash
     ./passgen/install.sh
     ```
 
 The script will:
 *   Check for `git` and `cargo`.
-*   Clone the repository (if not already present).
 *   Build the project in release mode.
 *   Attempt to copy the compiled `passgen` binary to `/usr/local/bin`. You might be prompted for your password if `sudo` is required for this step.
 
 ### Manual Installation
 
 ```bash
-# Clone the repository (replace with the actual URL)
 git clone https://github.com/kxrxh/passgen.git
 cd passgen
 
-# Build with Cargo
 cargo build --release
 
-# Optional: Copy to a directory in your PATH (e.g., /usr/local/bin)
-# This might require sudo
 sudo cp target/release/passgen /usr/local/bin/
 ```
 
