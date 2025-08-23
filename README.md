@@ -29,8 +29,6 @@ A powerful, feature-rich CLI tool for generating strong, secure passwords with e
 
 ## 🎬 Demos
 
-> 💡 **Generate these GIFs using [VHS](https://github.com/charmbracelet/vhs)**: `vhs demo/demo-basic.vhs`
-
 ### 🔧 Basic Usage
 
 ![Basic Password Generation](demo/demo-basic.gif)
