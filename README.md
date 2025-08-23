@@ -21,6 +21,7 @@ A simple CLI tool for generating strong, secure passwords with customizable opti
 An installation script is provided for convenience on Linux and macOS systems.
 
 **Prerequisites:**
+
 - `git` must be installed.
 - `cargo` (Rust toolchain) must be installed. You can install it from [https://rustup.rs/](https://rustup.rs/).
 
@@ -39,6 +40,7 @@ An installation script is provided for convenience on Linux and macOS systems.
     ```
 
 The script will:
+
 - Check for `git` and `cargo`.
 - Build the project in release mode.
 - Attempt to copy the compiled `passgen` binary to `/usr/local/bin`. You might be prompted for your password if `sudo` is required for this step.
