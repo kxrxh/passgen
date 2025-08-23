@@ -1,6 +1,9 @@
 use clap::Parser;
-use passgen::{generate_password, generate_multiple_passwords, generate_password_with_strength, generate_smart_password, SmartPasswordMode, PasswordOptions, PasswordSafe};
-use dialoguer::{theme::ColorfulTheme, Confirm, Input, MultiSelect, Password};
+use dialoguer::{Confirm, Input, MultiSelect, theme::ColorfulTheme};
+use passgen::{
+    PasswordOptions, SmartPasswordMode, generate_multiple_passwords, generate_password,
+    generate_password_with_strength, generate_smart_password,
+};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -56,32 +59,6 @@ struct Args {
     /// Generate password using pattern (U=uppercase, L=lowercase, D=digit, S=symbol)
     #[arg(short = 'p', long, value_name = "PATTERN")]
     pattern: Option<String>,
-
-
-
-    /// Create a new password safe
-    #[arg(long, value_name = "FILE")]
-    create_safe: Option<String>,
-
-    /// Open an existing password safe
-    #[arg(long, value_name = "FILE")]
-    open_safe: Option<String>,
-
-    /// Add current generated password to safe
-    #[arg(long)]
-    store: bool,
-
-    /// List passwords in safe
-    #[arg(long)]
-    list_safe: bool,
-
-    /// Service name for storage operations
-    #[arg(long, value_name = "SERVICE")]
-    service: Option<String>,
-
-    /// Username for storage operations
-    #[arg(long, value_name = "USERNAME")]
-    username: Option<String>,
 }
 
 fn main() {
@@ -126,60 +103,6 @@ fn main() {
         };
         let pwd_strength = generate_smart_password(SmartPasswordMode::Pattern(pattern), &opts);
         print_detailed_strength(&pwd_strength);
-        return;
-    }
-
-
-
-    // Handle password safe operations
-    if let Some(file_path) = args.create_safe {
-        let master_password = Password::with_theme(&ColorfulTheme::default())
-            .with_prompt("Enter master password for new safe")
-            .interact()
-            .unwrap();
-
-        let confirm_password = Password::with_theme(&ColorfulTheme::default())
-            .with_prompt("Confirm master password")
-            .interact()
-            .unwrap();
-
-        if master_password != confirm_password {
-            eprintln!("❌ Passwords don't match!");
-            return;
-        }
-
-        match PasswordSafe::create(&file_path, &master_password) {
-            Ok(_) => println!("✅ Password safe created successfully at: {}", file_path),
-            Err(e) => eprintln!("❌ Failed to create safe: {:?}", e),
-        }
-        return;
-    }
-
-    if let Some(file_path) = args.open_safe {
-        let master_password = Password::with_theme(&ColorfulTheme::default())
-            .with_prompt("Enter master password")
-            .interact()
-            .unwrap();
-
-        match PasswordSafe::open(&file_path, &master_password) {
-            Ok(safe) => {
-                if args.list_safe {
-                    println!("🔐 Passwords in safe:");
-                    for (id, password) in safe.list_passwords() {
-                        println!("  ID: {} | Service: {} | Username: {} | Tags: {}",
-                            id,
-                            password.service,
-                            password.username.as_ref().unwrap_or(&"N/A".to_string()),
-                            password.tags.join(", ")
-                        );
-                    }
-                } else {
-                    println!("✅ Safe opened successfully!");
-                    println!("   Use --list-safe to view stored passwords");
-                }
-            }
-            Err(e) => eprintln!("❌ Failed to open safe: {:?}", e),
-        }
         return;
     }
 
@@ -228,7 +151,10 @@ fn main() {
         if args.count > 1 {
             println!("Generated {} passwords", analysis.count);
             println!("Average entropy: {:.1} bits", analysis.average_entropy);
-            println!("Average strength score: {:.1}/4", analysis.average_strength_score);
+            println!(
+                "Average strength score: {:.1}/4",
+                analysis.average_strength_score
+            );
         }
         return;
     }
@@ -245,68 +171,22 @@ fn main() {
     } else {
         let password = generate_password(&opts);
         println!("{}", password);
-
-        // Handle password storage if requested
-        if args.store {
-            if let (Some(service), Some(username)) = (args.service.clone(), args.username.clone()) {
-                println!("💾 Storing password in safe...");
-                println!("   Service: {}", service);
-                println!("   Username: {}", username);
-
-                let safe_file = "passwords.safe";
-                let master_password = Password::with_theme(&ColorfulTheme::default())
-                    .with_prompt("Enter master password for safe")
-                    .interact()
-                    .unwrap();
-
-                match PasswordSafe::open(safe_file, &master_password) {
-                    Ok(mut safe) => {
-                        match safe.add_password(service, Some(username), password, None, vec![]) {
-                            Ok(id) => println!("✅ Password stored with ID: {}", id),
-                            Err(e) => eprintln!("❌ Failed to store password: {:?}", e),
-                        }
-                    }
-                    Err(_) => {
-                        // Try to create new safe
-                        let create_new = Confirm::with_theme(&ColorfulTheme::default())
-                            .with_prompt("Safe doesn't exist. Create new safe?")
-                            .default(true)
-                            .interact()
-                            .unwrap();
-
-                        if create_new {
-                            match PasswordSafe::create(safe_file, &master_password) {
-                                Ok(mut safe) => {
-                                    match safe.add_password(
-                                        args.service.unwrap(),
-                                        args.username,
-                                        password,
-                                        None,
-                                        vec![]
-                                    ) {
-                                        Ok(id) => println!("✅ Safe created and password stored with ID: {}", id),
-                                        Err(e) => eprintln!("❌ Failed to store password: {:?}", e),
-                                    }
-                                }
-                                Err(e) => eprintln!("❌ Failed to create safe: {:?}", e),
-                            }
-                        }
-                    }
-                }
-            } else {
-                eprintln!("❌ To store password, you must provide --service and --username");
-            }
-        }
     }
 }
 
 fn print_strength_info(pwd_strength: &passgen::PasswordStrength, detailed: bool) {
     println!("  Entropy: {:.1} bits", pwd_strength.entropy_bits);
-    println!("  Strength: {} ({})", pwd_strength.strength_label, pwd_strength.strength_score);
+    println!(
+        "  Strength: {} ({})",
+        pwd_strength.strength_label, pwd_strength.strength_score
+    );
     println!("  Crack time: {}", pwd_strength.crack_time_display);
 
     if detailed {
-        println!("  Character sets: {}", pwd_strength.character_sets.join(", "));
+        println!(
+            "  Character sets: {}",
+            pwd_strength.character_sets.join(", ")
+        );
     }
 }
 
@@ -314,13 +194,21 @@ fn print_detailed_strength(pwd_strength: &passgen::PasswordStrength) {
     println!("Password: {}", pwd_strength.password);
     println!("Length: {} characters", pwd_strength.password.len());
     println!("Entropy: {:.1} bits", pwd_strength.entropy_bits);
-    println!("Strength: {} ({}/4)", pwd_strength.strength_label, pwd_strength.strength_score);
+    println!(
+        "Strength: {} ({}/4)",
+        pwd_strength.strength_label, pwd_strength.strength_score
+    );
     println!("Estimated crack time: {}", pwd_strength.crack_time_display);
-    println!("Character sets used: {}", pwd_strength.character_sets.join(", "));
+    println!(
+        "Character sets used: {}",
+        pwd_strength.character_sets.join(", ")
+    );
 
     // Add some guidance based on strength
     match pwd_strength.strength_score {
-        0..=1 => println!("⚠️  Warning: This password is weak and should not be used for sensitive accounts"),
+        0..=1 => println!(
+            "⚠️  Warning: This password is weak and should not be used for sensitive accounts"
+        ),
         2 => println!("ℹ️  This password has moderate strength"),
         3 => println!("✅ This password has good strength"),
         4 => println!("🔒 This password has excellent strength"),
@@ -370,7 +258,8 @@ fn run_interactive_wizard() -> PasswordOptions {
 
     println!("\n📋 Configuration Summary:");
     println!("   Length: {}", length);
-    println!("   Character sets: {}",
+    println!(
+        "   Character sets: {}",
         [
             if uppercase { Some("Uppercase") } else { None },
             if lowercase { Some("Lowercase") } else { None },
@@ -382,7 +271,10 @@ fn run_interactive_wizard() -> PasswordOptions {
         .collect::<Vec<_>>()
         .join(", ")
     );
-    println!("   Avoid ambiguous: {}", if avoid_ambiguous { "Yes" } else { "No" });
+    println!(
+        "   Avoid ambiguous: {}",
+        if avoid_ambiguous { "Yes" } else { "No" }
+    );
 
     PasswordOptions {
         length,
@@ -393,4 +285,3 @@ fn run_interactive_wizard() -> PasswordOptions {
         avoid_ambiguous,
     }
 }
-
