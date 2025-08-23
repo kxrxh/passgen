@@ -1,9 +1,5 @@
 # 🔐 PassGen
 
-[![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![CLI](https://img.shields.io/badge/CLI-000000?style=for-the-badge&logo=terminal&logoColor=white)](https://en.wikipedia.org/wiki/Command-line_interface)
-[![Security](https://img.shields.io/badge/Security-First-FF6B6B?style=for-the-badge&logo=shield&logoColor=white)](https://en.wikipedia.org/wiki/Password_strength)
-
 > 🚀 **The ultimate password generator for security-conscious developers**
 
 A powerful, feature-rich CLI tool for generating strong, secure passwords with enterprise-grade security features and interactive wizards.
