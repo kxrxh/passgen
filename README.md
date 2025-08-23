@@ -8,6 +8,11 @@ A simple CLI tool for generating strong, secure passwords with customizable opti
 - Customize character sets (uppercase, lowercase, numbers, special characters)
 - Option to exclude ambiguous characters to improve readability
 - Ensure at least one character from each selected set for increased security
+- Password strength analysis with entropy
+- Batch password generation
+- JSON output for programmatic use
+- Detailed password analysis with crack time estimates
+- zxcvbn-based password strength scoring
 
 ## Installation
 
@@ -16,24 +21,27 @@ A simple CLI tool for generating strong, secure passwords with customizable opti
 An installation script is provided for convenience on Linux and macOS systems.
 
 **Prerequisites:**
-*   `git` must be installed.
-*   `cargo` (Rust toolchain) must be installed. You can install it from [https://rustup.rs/](https://rustup.rs/).
+- `git` must be installed.
+- `cargo` (Rust toolchain) must be installed. You can install it from [https://rustup.rs/](https://rustup.rs/).
 
 **Steps:**
 
-1.  Make the script executable:
+1. Make the script executable:
+
     ```bash
     chmod +x passgen/install.sh
     ```
-2.  Run the script from the directory *containing* the `passgen` folder:
+
+2. Run the script from the directory *containing* the `passgen` folder:
+
     ```bash
     ./passgen/install.sh
     ```
 
 The script will:
-*   Check for `git` and `cargo`.
-*   Build the project in release mode.
-*   Attempt to copy the compiled `passgen` binary to `/usr/local/bin`. You might be prompted for your password if `sudo` is required for this step.
+- Check for `git` and `cargo`.
+- Build the project in release mode.
+- Attempt to copy the compiled `passgen` binary to `/usr/local/bin`. You might be prompted for your password if `sudo` is required for this step.
 
 ### Manual Installation
 
@@ -50,11 +58,14 @@ sudo cp target/release/passgen /usr/local/bin/
 
 If you installed using the `install.sh` script or manually copied the binary to `/usr/local/bin`, you can use the `uninstall.sh` script.
 
-1.  Make the script executable:
+1. Make the script executable:
+
     ```bash
     chmod +x passgen/uninstall.sh
     ```
-2.  Run the script:
+
+2. Run the script:
+
     ```bash
     ./passgen/uninstall.sh
     ```
@@ -76,6 +87,15 @@ passgen -u -n
 # Generate a 20-character password without ambiguous characters
 passgen -l 20 -a
 
+# Generate 5 passwords with strength analysis
+passgen -c 5 -t
+
+# Generate a password with detailed analysis
+passgen --detailed
+
+# Generate 3 passwords in JSON format
+passgen -c 3 -j
+
 # Show help
 passgen --help
 ```
@@ -84,16 +104,83 @@ passgen --help
 
 ```
 Options:
-  -l, --length <LENGTH>  Length of the password [default: 16]
-  -u, --uppercase        Include uppercase letters
-  -w, --lowercase        Include lowercase letters
-  -n, --numbers          Include numbers
-  -s, --special          Include special characters
-  -a, --avoid-ambiguous  Exclude ambiguous characters like 1, l, I, 0, O
-  -h, --help             Print help
-  -V, --version          Print version
+  -l, --length <LENGTH>      Length of the password [default: 16]
+  -u, --uppercase            Include uppercase letters
+  -w, --lowercase            Include lowercase letters
+  -n, --numbers              Include numbers
+  -s, --special              Include special characters
+  -a, --avoid-ambiguous      Exclude ambiguous characters like 1, l, I, 0, O
+  -c, --count <COUNT>        Number of passwords to generate [default: 1]
+  -t, --strength             Show password strength analysis
+  -j, --json                 Output in JSON format
+  -d, --detailed             Show detailed analysis (implies --strength)
+  -h, --help                 Print help
+  -V, --version              Print version
+```
+
+### New Features
+
+#### Password Strength Analysis
+
+PassGen now includes comprehensive password strength analysis using the zxcvbn library:
+
+```bash
+# Basic strength analysis
+passgen --strength
+
+# Detailed analysis with recommendations
+passgen --detailed
+```
+
+The analysis includes:
+
+- **Entropy calculation** in bits
+- **Strength score** (0-4 scale)
+- **Estimated crack time** based on offline attacks
+- **Character set information**
+
+#### Batch Generation
+
+Generate multiple passwords at once:
+
+```bash
+# Generate 5 passwords
+passgen -c 5
+
+# Generate 10 passwords with strength analysis
+passgen -c 10 --strength
+```
+
+#### JSON Output
+
+Perfect for programmatic use and integration with other tools:
+
+```bash
+# Get passwords in JSON format
+passgen -c 3 --json
+```
+
+Example JSON output:
+
+```json
+{
+  "passwords": [
+    {
+      "password": "ExamplePass123!",
+      "entropy_bits": 103.4,
+      "strength_score": 4,
+      "strength_label": "Very Strong",
+      "crack_time_seconds": 1.014e21,
+      "crack_time_display": "32157549473065 years",
+      "character_sets": ["uppercase", "lowercase", "numbers", "special"]
+    }
+  ],
+  "count": 1,
+  "average_entropy": 103.4,
+  "average_strength_score": 4.0
+}
 ```
 
 ## License
 
-MIT 
+MIT
