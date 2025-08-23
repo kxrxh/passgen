@@ -3,6 +3,15 @@ use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng};
 use zxcvbn::zxcvbn;
 use serde::{Deserialize, Serialize};
+use aes_gcm::{Aes256Gcm, Key, Nonce};
+use aes_gcm::aead::{Aead, KeyInit};
+use argon2::Argon2;
+
+use base64::{Engine as _, engine::general_purpose};
+use chrono::{DateTime, Utc};
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 
 #[derive(Clone, Debug, Default)]
 pub struct PasswordOptions {
@@ -31,6 +40,71 @@ pub struct PasswordAnalysis {
     pub count: usize,
     pub average_entropy: f64,
     pub average_strength_score: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoredPassword {
+    pub id: String,
+    pub service: String,
+    pub username: Option<String>,
+    pub password: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub notes: Option<String>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PasswordStorage {
+    pub version: String,
+    pub salt: String,
+    pub passwords: HashMap<String, StoredPassword>,
+}
+
+#[derive(Debug)]
+pub struct PasswordSafe {
+    storage: PasswordStorage,
+    key: Vec<u8>,
+    file_path: String,
+}
+
+#[derive(Debug)]
+pub enum StorageError {
+    IoError(std::io::Error),
+    EncryptionError(String),
+    JsonError(serde_json::Error),
+    PasswordHashError(argon2::password_hash::Error),
+    NotFound(String),
+}
+
+impl From<std::io::Error> for StorageError {
+    fn from(err: std::io::Error) -> Self {
+        StorageError::IoError(err)
+    }
+}
+
+impl From<serde_json::Error> for StorageError {
+    fn from(err: serde_json::Error) -> Self {
+        StorageError::JsonError(err)
+    }
+}
+
+impl From<argon2::password_hash::Error> for StorageError {
+    fn from(err: argon2::password_hash::Error) -> Self {
+        StorageError::PasswordHashError(err)
+    }
+}
+
+impl From<argon2::Error> for StorageError {
+    fn from(err: argon2::Error) -> Self {
+        StorageError::EncryptionError(err.to_string())
+    }
+}
+
+impl From<base64::DecodeError> for StorageError {
+    fn from(err: base64::DecodeError) -> Self {
+        StorageError::EncryptionError(format!("Base64 decode error: {}", err))
+    }
 }
 
 /// Generate a password using the provided options.
@@ -223,6 +297,56 @@ pub fn analyze_password_strength(password: &str, opts: &PasswordOptions) -> Pass
     }
 }
 
+/// Analyze password strength by detecting actual character sets used
+pub fn analyze_password_strength_smart(password: &str) -> PasswordStrength {
+    // Detect which character sets are actually used in the password
+    let has_uppercase = password.chars().any(|c| c.is_ascii_uppercase());
+    let has_lowercase = password.chars().any(|c| c.is_ascii_lowercase());
+    let has_numbers = password.chars().any(|c| c.is_ascii_digit());
+    let has_special = password.chars().any(|c| !c.is_alphanumeric());
+
+    // Calculate charset size based on detected usage
+    let mut charset_size = 0;
+    if has_uppercase { charset_size += 26; }
+    if has_lowercase { charset_size += 26; }
+    if has_numbers { charset_size += 10; }
+    if has_special { charset_size += 22; } // Approximate for special chars
+
+    let entropy = calculate_entropy(password.len(), charset_size);
+
+    // Build character sets list
+    let mut character_sets = Vec::new();
+    if has_uppercase { character_sets.push("uppercase".to_string()); }
+    if has_lowercase { character_sets.push("lowercase".to_string()); }
+    if has_numbers { character_sets.push("numbers".to_string()); }
+    if has_special { character_sets.push("special".to_string()); }
+
+    let estimate = zxcvbn(password, &[]).unwrap();
+    let strength_score = estimate.score();
+    let strength_label = match strength_score {
+        0 => "Very Weak".to_string(),
+        1 => "Weak".to_string(),
+        2 => "Good".to_string(),
+        3 => "Strong".to_string(),
+        4 => "Very Strong".to_string(),
+        _ => "Unknown".to_string(),
+    };
+
+    // Use the calculated entropy for crack time estimate
+    let crack_time_seconds = estimate_crack_time_from_entropy(entropy);
+    let crack_time_display = format_crack_time(crack_time_seconds);
+
+    PasswordStrength {
+        password: password.to_string(),
+        entropy_bits: entropy,
+        strength_score,
+        strength_label,
+        crack_time_seconds,
+        crack_time_display,
+        character_sets,
+    }
+}
+
 /// Estimate crack time based on entropy (simplified calculation)
 fn estimate_crack_time_from_entropy(entropy: f64) -> f64 {
     // Assume 1e10 guesses per second (typical for offline attacks)
@@ -275,6 +399,304 @@ pub fn generate_multiple_passwords(opts: &PasswordOptions, count: usize) -> Pass
         count,
         average_entropy,
         average_strength_score,
+    }
+}
+
+/// Generate a phonetic password (easier to remember)
+pub fn generate_phonetic_password(opts: &PasswordOptions) -> String {
+    const CONSONANTS: &str = "bcdfghjklmnpqrstvwxyz";
+    const VOWELS: &str = "aeiou";
+    const DIGITS: &str = "0123456789";
+    const SYMBOLS: &str = "!@#$%^&*";
+
+    let mut rng = StdRng::from_entropy();
+    let mut password = String::new();
+
+    // Generate phonetic pattern: alternating consonant-vowel
+    for i in 0..opts.length {
+        let char = if i % 2 == 0 {
+            // Consonant (lowercase)
+            let idx = rng.gen_range(0..CONSONANTS.len());
+            CONSONANTS.chars().nth(idx).unwrap()
+        } else {
+            // Vowel (lowercase)
+            let idx = rng.gen_range(0..VOWELS.len());
+            VOWELS.chars().nth(idx).unwrap()
+        };
+        password.push(char);
+    }
+
+    // Add some digits and symbols for strength if enabled
+    if opts.length >= 8 {
+        // Replace 2 random positions with digits if numbers are enabled
+        if opts.numbers {
+            for _ in 0..2.min(opts.length / 4) {
+                let pos = rng.gen_range(0..password.len());
+                let digit = DIGITS.chars().nth(rng.gen_range(0..DIGITS.len())).unwrap();
+                password = password.chars().enumerate()
+                    .map(|(i, c)| if i == pos { digit } else { c })
+                    .collect();
+            }
+        }
+
+        // Add one symbol if special characters are enabled
+        if opts.special {
+            let pos = rng.gen_range(0..password.len());
+            let symbol = SYMBOLS.chars().nth(rng.gen_range(0..SYMBOLS.len())).unwrap();
+            password = password.chars().enumerate()
+                .map(|(i, c)| if i == pos { symbol } else { c })
+                .collect();
+        }
+    }
+
+    password
+}
+
+/// Generate a pattern-based password with specific constraints
+pub fn generate_pattern_password(pattern: &str, _opts: &PasswordOptions) -> String {
+    const UPPERCASE: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const LOWERCASE: &str = "abcdefghijklmnopqrstuvwxyz";
+    const NUMBERS: &str = "0123456789";
+    const SYMBOLS: &str = "!@#$%^&*()-=_+[]{}|;:,.<>?";
+
+    let mut rng = StdRng::from_entropy();
+    let mut password = String::new();
+
+    for ch in pattern.chars() {
+        let char_set = match ch {
+            'U' => UPPERCASE,
+            'L' => LOWERCASE,
+            'D' => NUMBERS,
+            'S' => SYMBOLS,
+            _ => continue, // Skip unknown pattern characters
+        };
+
+        let idx = rng.gen_range(0..char_set.len());
+        let character = char_set.chars().nth(idx).unwrap();
+        password.push(character);
+    }
+
+    password
+}
+
+
+
+/// Smart password generation with different modes
+pub enum SmartPasswordMode {
+    Phonetic,
+    Pattern(String),
+}
+
+pub fn generate_smart_password(mode: SmartPasswordMode, opts: &PasswordOptions) -> PasswordStrength {
+    let password = match mode {
+        SmartPasswordMode::Phonetic => generate_phonetic_password(opts),
+        SmartPasswordMode::Pattern(pattern) => generate_pattern_password(&pattern, opts),
+
+    };
+
+
+    analyze_password_strength_smart(&password)
+}
+
+/// Password Safe Implementation
+impl PasswordSafe {
+    /// Create a new password safe with a master password
+    pub fn create<P: AsRef<Path>>(file_path: P, master_password: &str) -> Result<Self, StorageError> {
+        // Generate a random salt (16 bytes)
+        let salt_bytes = rand::thread_rng().r#gen::<[u8; 16]>();
+        let salt = general_purpose::STANDARD.encode(salt_bytes);
+        let key = Self::derive_key(master_password, &salt)?;
+
+        let storage = PasswordStorage {
+            version: "1.0".to_string(),
+            salt: salt.clone(),
+            passwords: HashMap::new(),
+        };
+
+        let file_path_str = file_path.as_ref().to_string_lossy().to_string();
+
+        let safe = PasswordSafe {
+            storage,
+            key,
+            file_path: file_path_str.clone(),
+        };
+
+        safe.save()?;
+        Ok(safe)
+    }
+
+    /// Open an existing password safe
+    pub fn open<P: AsRef<Path>>(file_path: P, master_password: &str) -> Result<Self, StorageError> {
+        let file_path = file_path.as_ref();
+        if !file_path.exists() {
+            return Err(StorageError::NotFound("Password safe file not found".to_string()));
+        }
+
+        let file_data = fs::read(file_path)?;
+        let decrypted_data = Self::decrypt_data(&file_data, master_password)?;
+        let storage: PasswordStorage = serde_json::from_slice(&decrypted_data)?;
+
+        // Verify the master password by re-deriving the key
+        let key = Self::derive_key(master_password, &storage.salt)?;
+        let file_path_str = file_path.to_string_lossy().to_string();
+
+        Ok(PasswordSafe {
+            storage,
+            key,
+            file_path: file_path_str,
+        })
+    }
+
+    /// Add a new password to the safe
+    pub fn add_password(&mut self, service: String, username: Option<String>, password: String, notes: Option<String>, tags: Vec<String>) -> Result<String, StorageError> {
+        let id = format!("{:x}", rand::thread_rng().r#gen::<u64>());
+        let now = Utc::now();
+
+        let stored_password = StoredPassword {
+            id: id.clone(),
+            service,
+            username,
+            password,
+            created_at: now,
+            updated_at: now,
+            notes,
+            tags,
+        };
+
+        self.storage.passwords.insert(id.clone(), stored_password);
+        self.save()?;
+        Ok(id)
+    }
+
+    /// Get a password by ID
+    pub fn get_password(&self, id: &str) -> Option<&StoredPassword> {
+        self.storage.passwords.get(id)
+    }
+
+    /// Get a password by service name
+    pub fn get_password_by_service(&self, service: &str) -> Option<&StoredPassword> {
+        self.storage.passwords.values().find(|p| p.service == service)
+    }
+
+    /// List all passwords (without the actual password values)
+    pub fn list_passwords(&self) -> Vec<(&String, &StoredPassword)> {
+        self.storage.passwords.iter().collect()
+    }
+
+    /// Update a password
+    pub fn update_password(&mut self, id: &str, password: String) -> Result<(), StorageError> {
+        if let Some(stored) = self.storage.passwords.get_mut(id) {
+            stored.password = password;
+            stored.updated_at = Utc::now();
+            self.save()?;
+            Ok(())
+        } else {
+            Err(StorageError::NotFound(format!("Password with ID {} not found", id)))
+        }
+    }
+
+    /// Delete a password
+    pub fn delete_password(&mut self, id: &str) -> Result<(), StorageError> {
+        if self.storage.passwords.remove(id).is_some() {
+            self.save()?;
+            Ok(())
+        } else {
+            Err(StorageError::NotFound(format!("Password with ID {} not found", id)))
+        }
+    }
+
+    /// Save the password safe to disk
+    fn save(&self) -> Result<(), StorageError> {
+        let data = serde_json::to_vec(&self.storage)?;
+        let encrypted_data = Self::encrypt_data(&data, &self.key)?;
+
+        // Prepend the salt to the encrypted data
+        let salt_bytes = general_purpose::STANDARD.decode(&self.storage.salt)?;
+        let mut file_data = salt_bytes;
+        file_data.extend_from_slice(&encrypted_data);
+
+        fs::write(&self.file_path, file_data)?;
+        Ok(())
+    }
+
+    /// Derive encryption key from master password
+    fn derive_key(master_password: &str, salt: &str) -> Result<Vec<u8>, StorageError> {
+        let salt_bytes = general_purpose::STANDARD.decode(salt)
+            .map_err(|_| StorageError::EncryptionError("Invalid salt".to_string()))?;
+
+        let mut output_key_material = [0u8; 32];
+        Argon2::default().hash_password_into(
+            master_password.as_bytes(),
+            &salt_bytes,
+            &mut output_key_material,
+        )?;
+
+        Ok(output_key_material.to_vec())
+    }
+
+    /// Encrypt data using AES-GCM
+    fn encrypt_data(data: &[u8], key: &[u8]) -> Result<Vec<u8>, StorageError> {
+        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+        let nonce = Nonce::from(rand::thread_rng().r#gen::<[u8; 12]>());
+
+        let ciphertext = cipher.encrypt(&nonce, data)
+            .map_err(|_| StorageError::EncryptionError("Encryption failed".to_string()))?;
+
+        // Combine nonce and ciphertext
+        let mut result = nonce.to_vec();
+        result.extend_from_slice(&ciphertext);
+        Ok(result)
+    }
+
+    /// Decrypt data using AES-GCM
+    fn decrypt_data(data: &[u8], master_password: &str) -> Result<Vec<u8>, StorageError> {
+        if data.len() < 32 { // Salt (16 bytes) + nonce (12 bytes) + at least some data
+            return Err(StorageError::EncryptionError("Invalid encrypted data".to_string()));
+        }
+
+        // Extract salt from the beginning (16 bytes for salt)
+        let salt_bytes = &data[..16];
+        let salt = general_purpose::STANDARD.encode(salt_bytes);
+        let key = Self::derive_key(master_password, &salt)?;
+
+        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
+        let nonce = Nonce::from_slice(&data[16..28]);
+        let ciphertext = &data[28..];
+
+        cipher.decrypt(nonce, ciphertext)
+            .map_err(|_| StorageError::EncryptionError("Decryption failed - wrong password?".to_string()))
+    }
+
+    /// Export passwords to CSV format (without actual passwords)
+    pub fn export_metadata(&self) -> String {
+        let mut csv = "ID,Service,Username,Created,Updated,Tags\n".to_string();
+
+        for password in self.storage.passwords.values() {
+            let username = password.username.as_ref().map(|s| s.as_str()).unwrap_or("");
+            let tags = password.tags.join("; ");
+            csv.push_str(&format!("{},{},{},{},{},{}\n",
+                password.id,
+                password.service,
+                username,
+                password.created_at.to_rfc3339(),
+                password.updated_at.to_rfc3339(),
+                tags
+            ));
+        }
+
+        csv
+    }
+}
+
+impl Default for PasswordStorage {
+    fn default() -> Self {
+        let salt_bytes = rand::thread_rng().r#gen::<[u8; 16]>();
+        let salt = general_purpose::STANDARD.encode(salt_bytes);
+        Self {
+            version: "1.0".to_string(),
+            salt,
+            passwords: HashMap::new(),
+        }
     }
 }
 

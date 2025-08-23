@@ -13,6 +13,9 @@ A simple CLI tool for generating strong, secure passwords with customizable opti
 - JSON output for programmatic use
 - Detailed password analysis with crack time estimates
 - zxcvbn-based password strength scoring
+- Secure encrypted password storage
+- Interactive password building wizard
+- Smart password generation (phonetic, pattern-based)
 
 ## Installation
 
@@ -98,6 +101,26 @@ passgen --detailed
 # Generate 3 passwords in JSON format
 passgen -c 3 -j
 
+# Interactive password building wizard
+passgen --interactive
+
+# Generate phonetic password (easier to remember)
+passgen --phonetic --detailed
+
+# Generate password using pattern (U=uppercase, L=lowercase, D=digit, S=symbol)
+passgen --pattern "UULLDDSS" --detailed
+
+
+
+# Create a new encrypted password safe
+passgen --create-safe mypasswords.safe
+
+# Store a generated password in the safe
+passgen --service "GitHub" --username "myuser" --store
+
+# List passwords stored in the safe
+passgen --open-safe mypasswords.safe --list-safe
+
 # Show help
 passgen --help
 ```
@@ -116,6 +139,16 @@ Options:
   -t, --strength             Show password strength analysis
   -j, --json                 Output in JSON format
   -d, --detailed             Show detailed analysis (implies --strength)
+  -i, --interactive          Interactive password building wizard
+      --phonetic             Generate phonetic password (easier to remember)
+  -p, --pattern <PATTERN>    Generate password using pattern (U=uppercase, L=lowercase, D=digit, S=symbol)
+
+      --create-safe <FILE>   Create a new password safe
+      --open-safe <FILE>     Open an existing password safe
+      --store                Add current generated password to safe
+      --list-safe            List passwords in safe
+      --service <SERVICE>    Service name for storage operations
+      --username <USERNAME>  Username for storage operations
   -h, --help                 Print help
   -V, --version              Print version
 ```
@@ -182,6 +215,84 @@ Example JSON output:
   "average_strength_score": 4.0
 }
 ```
+
+#### Interactive Password Building Wizard
+
+Build your perfect password through an interactive step-by-step process:
+
+```bash
+passgen --interactive
+```
+
+Features:
+
+- **Guided setup**: Step-by-step password configuration
+- **Character set selection**: Interactive multi-select for character types
+- **Smart defaults**: Sensible defaults with easy customization
+- **Configuration summary**: Review your choices before generation
+
+#### Smart Password Generation
+
+Generate passwords using intelligent methods:
+
+**Phonetic Passwords (easier to remember):**
+
+```bash
+passgen --phonetic --detailed
+```
+
+Creates passwords that follow phonetic patterns (alternating consonants and vowels) with added numbers and symbols for security.
+
+**Pattern-Based Generation:**
+
+```bash
+passgen --pattern "UULLDDSS" --detailed
+```
+
+Use patterns to create structured passwords:
+
+- `U` = Uppercase letter
+- `L` = Lowercase letter
+- `D` = Digit
+- `S` = Special character
+
+#### Secure Password Storage
+
+Store and manage your passwords securely with military-grade encryption:
+
+**Create a new password safe:**
+
+```bash
+passgen --create-safe mypasswords.safe
+```
+
+Creates an encrypted file protected by a master password using Argon2 key derivation and AES-256-GCM encryption.
+
+**Store generated passwords:**
+
+```bash
+passgen --service "GitHub" --username "myuser" --store
+```
+
+Automatically stores the generated password with metadata.
+
+**Manage your password safe:**
+
+```bash
+# List stored passwords
+passgen --open-safe mypasswords.safe --list-safe
+
+# Store a password with custom options
+passgen --length 24 --strength --store --service "Google" --username "me@gmail.com"
+```
+
+**Security Features:**
+
+- **AES-256-GCM encryption** for data protection
+- **Argon2 key derivation** for master password hashing
+- **Random salt generation** for each safe
+- **Master password verification** with confirmation
+- **Secure file format** with authenticated encryption
 
 ## License
 

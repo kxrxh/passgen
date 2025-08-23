@@ -9,3 +9,9 @@ rand = "0.8.5"
 zxcvbn = "2.2.2"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.134"
+dialoguer = "0.11"
+aes-gcm = "0.10"
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
