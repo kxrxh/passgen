@@ -190,17 +190,6 @@ passgen --help
 
 ## 📈 **Why PassGen?**
 
-### 🆚 **PassGen vs Traditional Password Managers**
-
-| Feature | Traditional Managers | **PassGen** |
-|---------|---------------------|-------------|
-| **Setup** | Complex installation | Zero-config CLI |
-
-| **Generation** | Basic algorithms | Advanced cryptographic generation |
-| **Analysis** | Limited feedback | Real-time entropy analysis |
-| **Automation** | API dependent | Native CLI integration |
-| **Privacy** | Third-party dependency | Complete local control |
-
 ### 🎯 **Perfect For**
 
 - **Developers** who need strong passwords for multiple services
@@ -208,13 +197,6 @@ passgen --help
 - **Security professionals** testing password policies
 - **Teams** requiring consistent password generation
 - **Automation scripts** needing secure password generation
-
-### 🔒 **Security Standards**
-
-- **Cryptographically secure** random generation
-
-- **Zero-knowledge architecture** - passwords never leave your device
-- **Open source** for complete transparency
 
 ### 🚀 **Performance**
 
